@@ -3,20 +3,33 @@ import json
 from django.views import View
 from django.http import HttpResponse, JsonResponse
 from django.apps import apps
+import bcrypt
+import jwt
 
 # Create your views here.
-Users = apps.get_model('signup', 'Users')
+from signup.models import Users
 
 class SigninView(View):
+
     def post(self, request):
         data = json.loads(request.body)
+        
+        if set(data.keys()) != set(['email', 'password']):
+            return JsonResponse({'Error':'Wrong Key Input, You Need eamil and password'}, status=400)
+
         try:
             user_email = data['email']
-            user_password = data['password']
+            user_pw = data['password']
             if Users.objects.filter(email=user_email):
-                user_account = Users.objects.filter(email=user_email)[0]
-                if user_account.password == user_password:
-                    return HttpResponse(status=200)
+                user_account = Users.objects.filter(email=user_email).values()[0]
+                user_db_pw = user_account['password'].encode('utf-8')
+                if bcrypt.checkpw(user_pw.encode('utf-8'), user_db_pw) == True:
+
+                    #Token process
+                    SECRET = 'secret'
+                    id_target = user_account['id']
+                    access_token = jwt.encode({'id' : id_target}, SECRET, algorithm = 'HS256')
+                    return JsonResponse({'token': access_token.decode('utf-8')}, status=200)
                 else:
                     return JsonResponse({'message':'INVALID_USER_CheckPW'}, status=401)
             else:
